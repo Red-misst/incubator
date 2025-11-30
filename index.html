@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animated End-Wall Cabinet Incubator</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0f172a; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        canvas { display: block; }
+        
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 30px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            color: #38bdf8;
+            border-radius: 30px;
+            font-size: 16px;
+            text-align: center;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            pointer-events: none;
+            letter-spacing: 0.5px;
+        }
+
+        #controls-ui {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: rgba(15, 23, 42, 0.6);
+            padding: 20px;
+            border-radius: 16px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        button {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: #e2e8f0;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            min-width: 180px;
+        }
+
+        button:hover {
+            background: linear-gradient(135deg, #334155 0%, #1e293b 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(56, 189, 248, 0.2);
+            border-color: #38bdf8;
+        }
+
+        button.active {
+            background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.4);
+        }
+
+        button.active:hover {
+            background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 100%);
+        }
+
+        button::after {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #ef4444;
+            border-radius: 50%;
+            box-shadow: 0 0 5px #ef4444;
+            transition: background 0.3s;
+        }
+
+        button.active::after {
+            background: #22c55e;
+            box-shadow: 0 0 8px #22c55e;
+        }
+
+        .legend-box {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #94a3b8;
+            font-size: 13px;
+            pointer-events: none;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            color: #e2e8f0;
+        }
+
+        .dot { 
+            display: block; 
+            width: 10px; 
+            height: 10px; 
+            border-radius: 50%; 
+            margin-right: 12px;
+            box-shadow: 0 0 8px currentColor; 
+        }
+    </style>
+    <!-- Load Three.js and OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Load FontLoader for Text -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/FontLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/TextGeometry.js"></script>
+</head>
+<body>
+    <div id="info">
+        End-Wall Cabinet Incubator v2.7<br>
+        <span style="font-size: 13px; opacity: 0.7;">Full Exhaust Path & Trap Visualization</span>
+    </div>
+    
+    <div id="controls-ui">
+        <button id="btn-shell" onclick="toggleWalls()" class="active">Outer Shell</button>
+        <button id="btn-comp" onclick="toggleCompWalls()" class="active">Comp. Walls</button>
+        <button id="btn-doors" onclick="toggleDoors()" class="active">Doors</button>
+        <button id="btn-labels" onclick="toggleLabels()" class="active">Labels</button>
+        <button id="btn-anim" onclick="toggleAnimation()" class="active">System Power</button>
+    </div>
+
+    <div class="legend-box">
+        <strong style="color: white; display: block; margin-bottom: 15px;">Airflow & Status</strong>
+        <div class="legend-item"><span class="dot" style="background: #00ffff; color: #00ffff;"></span>Intake (Suction)</div>
+        <div class="legend-item"><span class="dot" style="background: #ffaa00; color: #ffaa00;"></span>Conditioned Air</div>
+        <div class="legend-item"><span class="dot" style="background: linear-gradient(to right, #ffaa00, #00ff00);"></span>Internal Flow</div>
+        <div class="legend-item"><span class="dot" style="background: #888888; color: #888888;"></span>Exhaust</div>
+    </div>
+
+    <script>
+        // --- Global Variables ---
+        let scene, camera, renderer, controls;
+        let wallGroup, compWallGroup, doorGroup, labelGroup, staticGroup;
+        let shellVisible = true, compVisible = true, doorsOpen = false, labelsVisible = true, systemOn = true;
+        
+        const doorPivots = []; 
+        const fans = []; 
+        const flowPaths = []; 
+        const particles = []; 
+        let heaterMesh = null; 
+
+        // --- Initialization ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+            
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 5000);
+            camera.position.set(2400, 1000, 800); 
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true }); 
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(500, 1000, 500);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.3); 
+            fillLight.position.set(-500, 100, 0);
+            scene.add(fillLight);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; 
+            controls.dampingFactor = 0.05;
+            controls.target.set(0, 500, 600); 
+
+            createEndWallSystem();
+            addLabels(); 
+            initParticles(); 
+
+            window.addEventListener('resize', onWindowResize, false);
+            animate();
+        }
+
+        // --- Geometry and Materials ---
+        const MAT_FAN_HOUSING = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.3, roughness: 0.4 });
+        const MAT_FAN_BLADE = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.8, roughness: 0.2 });
+        const MAT_PIPE = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.4, roughness: 0.5, transparent: true, opacity: 0.8, side: THREE.DoubleSide }); 
+        const MAT_PIPE_INTERNAL = new THREE.MeshStandardMaterial({ color: 0xa1a1aa, metalness: 0.4, roughness: 0.5, transparent: false }); 
+
+        const MAT_HUMIDIFIER = new THREE.MeshStandardMaterial({ color: 0x3b82f6, metalness: 0.1, roughness: 0.2, transparent: true, opacity: 0.8 });
+        const MAT_HEATER = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.3, roughness: 0.2, transparent: true, opacity: 0.8, emissive: 0xfbbf24, emissiveIntensity: 0.2 });
+        const MAT_MANIFOLD = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.5, roughness: 0.5 });
+        const MAT_VALVE = new THREE.MeshStandardMaterial({ color: 0x22c55e, metalness: 0.6, roughness: 0.3 });
+        const MAT_TRAP = new THREE.MeshStandardMaterial({ color: 0xa855f7, metalness: 0.4, roughness: 0.4 });
+        const MAT_PLENUM = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.2, roughness: 0.7 });
+        const MAT_WALL_FRAME = new THREE.MeshBasicMaterial({ color: 0x64748b, wireframe: true, transparent: true, opacity: 0.3 });
+        const MAT_BODY_GLASS = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.1, roughness: 0.1, transparent: true, opacity: 0.1, side: THREE.DoubleSide });
+        const MAT_CHAMBER_FRAME = new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.4 });
+        const MAT_PADDING = new THREE.MeshStandardMaterial({ color: 0x4b5563, metalness: 0.1, roughness: 0.9 });
+        const MAT_ROLLER = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.1, roughness: 0.9 }); 
+        const MAT_FRAME = new THREE.MeshStandardMaterial({ color: 0xffea00, metalness: 0.1, roughness: 0.6 }); 
+        const MAT_MOTOR = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.4 }); 
+        const MAT_OPAQUE_WALL = new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.1, roughness: 0.8 });
+        const MAT_COMP_INNER = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.0, roughness: 0.8 }); 
+        const MAT_COMP_OUTER = new THREE.MeshStandardMaterial({ color: 0x9ca3af, metalness: 0.1, roughness: 0.6 });
+        const MAT_DOOR_FRAME = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.3, roughness: 0.5 });
+        const MAT_DOOR_GLASS = new THREE.MeshStandardMaterial({ color: 0xbae6fd, metalness: 0.1, roughness: 0.0, transparent: true, opacity: 0.3 });
+        const MAT_TEXT = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const MAT_EGG = new THREE.MeshStandardMaterial({ color: 0xeebb99, roughness: 0.5, metalness: 0.0 }); 
+
+        // --- Helper Functions ---
+        function createComponent(geometry, material, x, y, z, name) {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            mesh.userData.name = name;
+            scene.add(mesh);
+            return mesh;
+        }
+
+        function createCurvedPipe(startPt, controlPt1, controlPt2, endPt, radius, flowType = null, isInternal = false) {
+            const curve = new THREE.CubicBezierCurve3(startPt, controlPt1, controlPt2, endPt);
+            const geometry = new THREE.TubeGeometry(curve, 24, radius, 8, false);
+            const mat = isInternal ? MAT_PIPE_INTERNAL : MAT_PIPE;
+            const mesh = new THREE.Mesh(geometry, mat);
+            scene.add(mesh);
+            if (flowType) flowPaths.push({ curve: curve, type: flowType });
+            return mesh;
+        }
+
+        function addFanBlades(fanMesh) {
+            const bladeGeo = new THREE.BoxGeometry(36, 5, 2);
+            const blade1 = new THREE.Mesh(bladeGeo, MAT_FAN_BLADE);
+            const blade2 = new THREE.Mesh(bladeGeo, MAT_FAN_BLADE);
+            blade2.rotation.y = Math.PI / 2;
+            const hub = new THREE.Group();
+            hub.add(blade1);
+            hub.add(blade2);
+            hub.rotation.x = Math.PI/2; 
+            fanMesh.add(hub);
+            fanMesh.userData.hub = hub; 
+            fans.push(hub);
+        }
+
+        function initParticles() {
+            const particleGeo = new THREE.SphereGeometry(6, 8, 8); 
+            
+            const matIntake = new THREE.MeshBasicMaterial({ color: 0x00ffff }); // Cyan
+            const matConditioned = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // Orange
+            const matExhaust = new THREE.MeshBasicMaterial({ color: 0x888888 }); // Grey
+            
+            flowPaths.forEach(data => {
+                const curve = data.curve;
+                const type = data.type;
+                
+                // Adjust density based on type
+                let count = 5;
+                if (type === 'internal') count = 20; 
+                if (type === 'fan_in') count = 15; 
+                if (type === 'fan_out') count = 15; 
+                if (type === 'trap') count = 12; // High density for Trap visualization
+                if (type === 'exhaust_spine') count = 20; // High density for vertical exhaust
+                
+                for(let i=0; i<count; i++) {
+                    let mat;
+                    if (type === 'internal') {
+                        mat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+                    } else if (type === 'intake' || type === 'fan_in') {
+                        mat = matIntake;
+                    } else if (type === 'conditioned' || type === 'trap') {
+                        mat = matConditioned;
+                    } else {
+                        mat = matExhaust; 
+                    }
+
+                    const p = new THREE.Mesh(particleGeo, mat);
+                    scene.add(p);
+                    particles.push({
+                        mesh: p,
+                        curve: curve,
+                        type: type,
+                        progress: i * (1/count) + (Math.random() * 0.1), 
+                        speed: 0.005 + Math.random() * 0.004 
+                    });
+                }
+            });
+        }
+
+        function addLabels() {
+            labelGroup = new THREE.Group();
+            scene.add(labelGroup);
+            const loader = new THREE.FontLoader();
+            loader.load('https://threejs.org/examples/fonts/helvetiker_regular.typeface.json', function (font) {
+                function createLabel(text, x, y, z, rotY = 0) {
+                    const textGeo = new THREE.TextGeometry(text, { font: font, size: 40, height: 2 });
+                    const textMesh = new THREE.Mesh(textGeo, MAT_TEXT);
+                    textMesh.position.set(x, y, z);
+                    textMesh.rotation.y = rotY;
+                    labelGroup.add(textMesh);
+                }
+                createLabel("FRONT (DOORS)", 300, 500, 600, Math.PI / 2);
+                createLabel("AHU (INTAKE)", -300, 1100, -100);
+                createLabel("OUTLET END", -300, 1100, 1250);
+            });
+        }
+
+        // --- Toggle Functions ---
+        window.toggleWalls = function() {
+            shellVisible = !shellVisible;
+            if (wallGroup) wallGroup.visible = shellVisible;
+            document.getElementById('btn-shell').classList.toggle('active');
+        };
+        window.toggleCompWalls = function() {
+            compVisible = !compVisible;
+            if (compWallGroup) compWallGroup.visible = compVisible;
+            document.getElementById('btn-comp').classList.toggle('active');
+        };
+        window.toggleDoors = function() {
+            doorsOpen = !doorsOpen;
+            document.getElementById('btn-doors').classList.toggle('active');
+        };
+        window.toggleLabels = function() {
+            labelsVisible = !labelsVisible;
+            if(labelGroup) labelGroup.visible = labelsVisible;
+            document.getElementById('btn-labels').classList.toggle('active');
+        }
+        window.toggleAnimation = function() {
+            systemOn = !systemOn;
+            document.getElementById('btn-anim').classList.toggle('active');
+        }
+
+        function createEndWallSystem() {
+            const CAB_L = 1200; const CAB_H = 1000; const CAB_W = 500; const WALL_THICKNESS = 100; 
+
+            // Basic Shell Frames
+            const wallGeo = new THREE.BoxGeometry(CAB_W, CAB_H, WALL_THICKNESS);
+            const wallFrame = new THREE.Mesh(wallGeo, MAT_WALL_FRAME);
+            wallFrame.position.set(0, CAB_H/2, -WALL_THICKNESS/2);
+            scene.add(wallFrame);
+
+            const bodyGeo = new THREE.BoxGeometry(CAB_W, CAB_H, CAB_L);
+            const bodyGlass = new THREE.Mesh(bodyGeo, MAT_BODY_GLASS);
+            bodyGlass.position.set(0, CAB_H/2, CAB_L/2);
+            scene.add(bodyGlass);
+            const bodyEdges = new THREE.EdgesGeometry(bodyGeo);
+            const bodyLines = new THREE.LineSegments(bodyEdges, MAT_CHAMBER_FRAME);
+            bodyLines.position.set(0, CAB_H/2, CAB_L/2);
+            scene.add(bodyLines);
+            
+            // --- Wall Groups ---
+            wallGroup = new THREE.Group(); scene.add(wallGroup);
+            const INS_THICKNESS = 50; 
+            const TOTAL_LEN = CAB_L + WALL_THICKNESS + INS_THICKNESS; 
+            const ASSEMBLY_CENTER_Z = (CAB_L - WALL_THICKNESS + INS_THICKNESS) / 2;
+
+            const farWallGeo = new THREE.BoxGeometry(CAB_W + (INS_THICKNESS*2), CAB_H + (INS_THICKNESS*2), INS_THICKNESS);
+            const farWall = new THREE.Mesh(farWallGeo, MAT_OPAQUE_WALL);
+            farWall.position.set(0, CAB_H/2, CAB_L + INS_THICKNESS/2);
+            wallGroup.add(farWall);
+            
+            const sideWallGeo = new THREE.BoxGeometry(INS_THICKNESS, CAB_H + (INS_THICKNESS*2), TOTAL_LEN);
+            const leftWall = new THREE.Mesh(sideWallGeo, MAT_OPAQUE_WALL);
+            leftWall.position.set(-CAB_W/2 - INS_THICKNESS/2, CAB_H/2, ASSEMBLY_CENTER_Z);
+            wallGroup.add(leftWall);
+            
+            const roofGeo = new THREE.BoxGeometry(CAB_W + (INS_THICKNESS*2), INS_THICKNESS, TOTAL_LEN);
+            const roof = new THREE.Mesh(roofGeo, MAT_OPAQUE_WALL);
+            roof.position.set(0, CAB_H + INS_THICKNESS/2, ASSEMBLY_CENTER_Z);
+            wallGroup.add(roof);
+            
+            const floor = new THREE.Mesh(roofGeo, MAT_OPAQUE_WALL);
+            floor.position.set(0, -INS_THICKNESS/2, ASSEMBLY_CENTER_Z);
+            wallGroup.add(floor);
+            
+            const ahuSkinGeo = new THREE.BoxGeometry(CAB_W, CAB_H, 5);
+            const ahuSkin = new THREE.Mesh(ahuSkinGeo, MAT_OPAQUE_WALL);
+            ahuSkin.position.set(0, CAB_H/2, -WALL_THICKNESS - 2.5);
+            wallGroup.add(ahuSkin);
+
+            // --- Ventilation System ---
+            const WALL_Z = -WALL_THICKNESS/2;
+            const FAN_RAD = 20; const PIPE_RAD = 8; const CHAMBER_SIZE = 50; 
+            const FAN_Y = 950; const FAN_X_OFFSET = (CAB_W / 2) - 80; 
+            const PLENUM_W = 60; const PLENUM_H = 60; const PLENUM_D = WALL_THICKNESS * 0.75; 
+            
+            const plenumGeo = new THREE.BoxGeometry(PLENUM_W, PLENUM_H, PLENUM_D);
+            createComponent(plenumGeo, MAT_PLENUM, -FAN_X_OFFSET, FAN_Y, WALL_Z, "Plenum Left");
+            createComponent(plenumGeo, MAT_PLENUM, FAN_X_OFFSET, FAN_Y, WALL_Z, "Plenum Right");
+
+            const FAN_THICKNESS = 60; 
+            const FAN_Z_POS = WALL_Z - (PLENUM_D / 2) - (FAN_THICKNESS/2) - 2; 
+            const fanGeo = new THREE.CylinderGeometry(FAN_RAD, FAN_RAD, FAN_THICKNESS, 32);
+            
+            const fan1 = createComponent(fanGeo, MAT_FAN_HOUSING, -FAN_X_OFFSET, FAN_Y, FAN_Z_POS, "Fan Left");
+            fan1.rotation.x = -Math.PI / 2; 
+            addFanBlades(fan1);
+
+            const fan2 = createComponent(fanGeo, MAT_FAN_HOUSING, FAN_X_OFFSET, FAN_Y, FAN_Z_POS, "Fan Right");
+            fan2.rotation.x = -Math.PI / 2;
+            addFanBlades(fan2);
+
+            // --- SUCTION INTAKE SIMULATION (Facing OUTWARDS) ---
+            const createFanIntake = (xOffset) => {
+                for(let i=0; i<15; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const startRadius = 60 + Math.random() * 40; 
+                    const sz = FAN_Z_POS - 150 - Math.random() * 50; 
+                    const sx = xOffset + Math.cos(angle) * startRadius;
+                    const sy = FAN_Y + Math.sin(angle) * startRadius;
+                    
+                    const start = new THREE.Vector3(sx, sy, sz); 
+                    
+                    const endRadius = Math.random() * (FAN_RAD - 2);
+                    const endAngle = Math.random() * Math.PI * 2;
+                    const ex = xOffset + Math.cos(endAngle) * endRadius;
+                    const ey = FAN_Y + Math.sin(endAngle) * endRadius;
+                    const ez = FAN_Z_POS - 5; 
+
+                    const midZ = (sz + ez) / 2;
+                    const mid = new THREE.Vector3(sx * 0.8 + xOffset * 0.2, sy * 0.8 + FAN_Y * 0.2, midZ); 
+
+                    const curve = new THREE.QuadraticBezierCurve3(start, mid, new THREE.Vector3(ex, ey, ez));
+                    flowPaths.push({ curve: curve, type: 'fan_in' });
+                }
+            };
+            createFanIntake(-FAN_X_OFFSET);
+            createFanIntake(FAN_X_OFFSET);
+            
+            const ductGeo = new THREE.CylinderGeometry(FAN_RAD - 2, FAN_RAD - 2, FAN_THICKNESS + 20, 16);
+            const duct1 = createComponent(ductGeo, MAT_PIPE, -FAN_X_OFFSET, FAN_Y, FAN_Z_POS + FAN_THICKNESS/2, "Duct Left");
+            duct1.rotation.x = -Math.PI / 2;
+            const duct2 = createComponent(ductGeo, MAT_PIPE, FAN_X_OFFSET, FAN_Y, FAN_Z_POS + FAN_THICKNESS/2, "Duct Right");
+            duct2.rotation.x = -Math.PI / 2;
+
+            const AHU_TOP_Y = 850;
+            const PLENUM_BOTTOM_Y = FAN_Y - (PLENUM_H / 2);
+
+            createCurvedPipe(
+                new THREE.Vector3(-FAN_X_OFFSET, PLENUM_BOTTOM_Y, WALL_Z), 
+                new THREE.Vector3(-FAN_X_OFFSET, PLENUM_BOTTOM_Y - 30, WALL_Z), 
+                new THREE.Vector3(0, AHU_TOP_Y + 50, WALL_Z), 
+                new THREE.Vector3(0, AHU_TOP_Y, WALL_Z),
+                PIPE_RAD,
+                'intake',
+                false
+            );
+            createCurvedPipe(
+                new THREE.Vector3(FAN_X_OFFSET, PLENUM_BOTTOM_Y, WALL_Z), 
+                new THREE.Vector3(FAN_X_OFFSET, PLENUM_BOTTOM_Y - 30, WALL_Z), 
+                new THREE.Vector3(0, AHU_TOP_Y + 50, WALL_Z), 
+                new THREE.Vector3(0, AHU_TOP_Y, WALL_Z),
+                PIPE_RAD,
+                'intake',
+                false
+            );
+
+            const HUM_Y = AHU_TOP_Y - CHAMBER_SIZE/2;
+            const ahubox = new THREE.BoxGeometry(CHAMBER_SIZE, CHAMBER_SIZE, CHAMBER_SIZE);
+            createComponent(ahubox, MAT_HUMIDIFIER, 0, HUM_Y, WALL_Z, "Humidifier");
+
+            const TRAP_START_Y = HUM_Y - CHAMBER_SIZE/2; 
+            const TRAP_BOTTOM_1_Y = TRAP_START_Y - 60; 
+            const TRAP_TOP_2_Y = TRAP_START_Y - 20;    
+            const TRAP_END_Y = TRAP_START_Y - 150;     
+            const HEATER_X_OFFSET = 40; 
+            
+            const trapCurve = new THREE.CatmullRomCurve3([
+                new THREE.Vector3(0, TRAP_START_Y, WALL_Z),               
+                new THREE.Vector3(0, TRAP_BOTTOM_1_Y, WALL_Z),            
+                new THREE.Vector3(HEATER_X_OFFSET, TRAP_TOP_2_Y, WALL_Z), 
+                new THREE.Vector3(HEATER_X_OFFSET, TRAP_END_Y, WALL_Z)    
+            ]);
+            
+            const trapGeo = new THREE.TubeGeometry(trapCurve, 32, PIPE_RAD, 8, false);
+            const trap = new THREE.Mesh(trapGeo, MAT_TRAP);
+            scene.add(trap);
+            // Increased density for Trap
+            flowPaths.push({ curve: trapCurve, type: 'trap' });
+
+            const HEATER_SIZE = CHAMBER_SIZE;
+            const HEATER_Y = TRAP_END_Y - HEATER_SIZE/2;
+            heaterMesh = createComponent(ahubox, MAT_HEATER, HEATER_X_OFFSET, HEATER_Y, WALL_Z, "Heater");
+
+            const HEATER_BOTTOM_Y = HEATER_Y - HEATER_SIZE/2; 
+            const BRANCH_X = -CAB_W/2 + 80; 
+            const BRANCH_Y = HEATER_BOTTOM_Y - 50; 
+            const BRANCH_Z = WALL_Z;
+            
+            createCurvedPipe(
+                new THREE.Vector3(HEATER_X_OFFSET, HEATER_BOTTOM_Y, WALL_Z),
+                new THREE.Vector3(HEATER_X_OFFSET, HEATER_BOTTOM_Y - 20, WALL_Z),
+                new THREE.Vector3(BRANCH_X + 50, BRANCH_Y, WALL_Z),
+                new THREE.Vector3(BRANCH_X, BRANCH_Y, WALL_Z), 
+                PIPE_RAD + 2,
+                'conditioned',
+                false
+            );
+            
+            // --- 9. Compartments & Zonal Injection ---
+            const COMP_H = 250;
+            const GAP = 62.5;
+            const COMP_CENTERS = [187.5, 500, 812.5]; 
+            
+            const O = MAT_COMP_OUTER; const I = MAT_COMP_INNER;
+            const matsFloor = [O, O, I, O, O, O];
+            const matsRoof = [O, O, O, I, O, O];
+            const matsBackWall = [I, O, O, O, O, O];
+            const matsNearWall = [O, O, O, O, I, O];
+            
+            compWallGroup = new THREE.Group(); scene.add(compWallGroup);
+            staticGroup = new THREE.Group(); scene.add(staticGroup);
+            doorGroup = new THREE.Group(); scene.add(doorGroup);
+            
+            const compFloorGeo = new THREE.BoxGeometry(CAB_W, 4, CAB_L);
+            const compBackGeo = new THREE.BoxGeometry(4, COMP_H, CAB_L);
+            const compEndGeo = new THREE.BoxGeometry(CAB_W, COMP_H, 4);
+            const paddingGeo = new THREE.BoxGeometry(CAB_W, GAP, CAB_L);
+            const eggGeo = new THREE.SphereGeometry(6, 16, 16); 
+            eggGeo.scale(1, 1.4, 1); 
+
+            COMP_CENTERS.forEach((yCenter, index) => {
+                const compNum = 3 - index;
+                const floor = new THREE.Mesh(compFloorGeo, matsFloor);
+                floor.position.set(0, yCenter - COMP_H/2, CAB_L/2);
+                staticGroup.add(floor); 
+                
+                const roof = new THREE.Mesh(compFloorGeo, matsRoof);
+                roof.position.set(0, yCenter + COMP_H/2, CAB_L/2);
+                staticGroup.add(roof);
+                
+                if (index < 2) { 
+                    const padY = yCenter + COMP_H/2 + GAP/2;
+                    const padding = new THREE.Mesh(paddingGeo, MAT_PADDING);
+                    padding.position.set(0, padY, CAB_L/2);
+                    staticGroup.add(padding);
+                }
+                
+                const cBack = new THREE.Mesh(compBackGeo, matsBackWall);
+                cBack.position.set(-CAB_W/2 + 2, yCenter, CAB_L/2);
+                compWallGroup.add(cBack);
+                const cNear = new THREE.Mesh(compEndGeo, matsNearWall);
+                cNear.position.set(0, yCenter, 2);
+                compWallGroup.add(cNear);
+
+                const PIVOT_Y = yCenter - COMP_H/2;
+                const PIVOT_X = CAB_W/2;
+                const PIVOT_Z = CAB_L/2;
+                const pivot = new THREE.Group();
+                pivot.position.set(PIVOT_X, PIVOT_Y, PIVOT_Z);
+                doorGroup.add(pivot);
+                doorPivots.push(pivot);
+                const frameGeo = new THREE.BoxGeometry(10, COMP_H, CAB_L);
+                const frame = new THREE.Mesh(frameGeo, MAT_DOOR_FRAME);
+                frame.position.set(0, COMP_H/2, 0); 
+                pivot.add(frame);
+                const glassGeo = new THREE.BoxGeometry(12, COMP_H - 40, CAB_L - 40);
+                const glass = new THREE.Mesh(glassGeo, MAT_DOOR_GLASS);
+                glass.position.set(0, COMP_H/2, 0);
+                pivot.add(glass);
+
+                // --- ROLLER MECHANISM ---
+                const ROLLER_Y = yCenter - COMP_H/2 + 20; 
+                const ROLLER_SPACING = 30;
+                const railGeo = new THREE.BoxGeometry(5, 10, CAB_L - 20);
+                const leftRail = new THREE.Mesh(railGeo, MAT_FRAME);
+                leftRail.position.set(-(CAB_W - 40)/2 - 2.5, ROLLER_Y, CAB_L/2);
+                staticGroup.add(leftRail);
+                const rightRail = new THREE.Mesh(railGeo, MAT_FRAME);
+                rightRail.position.set((CAB_W - 40)/2 + 2.5, ROLLER_Y, CAB_L/2);
+                staticGroup.add(rightRail);
+
+                const rollerGeo = new THREE.CylinderGeometry(7.5, 7.5, CAB_W - 40, 12);
+                const rollerCount = Math.floor(CAB_L / ROLLER_SPACING) - 2;
+                
+                for(let r=0; r<rollerCount; r++) {
+                    const rollerZ = (r * ROLLER_SPACING) + 40;
+                    const roller = new THREE.Mesh(rollerGeo, MAT_ROLLER);
+                    roller.position.set(0, ROLLER_Y, rollerZ);
+                    roller.rotation.z = Math.PI/2; 
+                    staticGroup.add(roller); 
+                    
+                    // --- EGG PLACEMENT (Between Rollers) ---
+                    if (r < rollerCount - 1) {
+                        const nextRollerZ = ((r + 1) * ROLLER_SPACING) + 40;
+                        const midZ = (rollerZ + nextRollerZ) / 2;
+                        const nestleY = ROLLER_Y + 5; 
+                        
+                        const eggsPerRow = 5;
+                        const availableWidth = CAB_W - 60; 
+                        const spacing = availableWidth / eggsPerRow;
+                        
+                        for(let e=0; e<eggsPerRow; e++) {
+                            const egg = new THREE.Mesh(eggGeo, MAT_EGG);
+                            const ex = -(availableWidth/2) + (spacing/2) + (spacing * e);
+                            
+                            egg.position.set(ex, nestleY, midZ);
+                            egg.rotation.z = (Math.random() - 0.5) * 0.2;
+                            egg.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.2; 
+                            staticGroup.add(egg);
+                        }
+                    }
+                }
+                
+                const motor = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 30, 16), MAT_MOTOR);
+                motor.position.set(((CAB_W - 40)/2 + 2.5) - 25, ROLLER_Y, CAB_L - 40); 
+                motor.rotation.z = Math.PI/2;
+                staticGroup.add(motor);
+
+                // --- Plumbing & Internal Pipes ---
+                const INTERNAL_PIPE_RAD = 12; 
+                const TARGET_Y = yCenter; 
+                const VALVE_X = BRANCH_X;    
+                createCurvedPipe(
+                    new THREE.Vector3(BRANCH_X, BRANCH_Y, BRANCH_Z), 
+                    new THREE.Vector3(BRANCH_X - 10, (BRANCH_Y + TARGET_Y)/2, BRANCH_Z), 
+                    new THREE.Vector3(BRANCH_X - 10, (BRANCH_Y + TARGET_Y)/2, BRANCH_Z),
+                    new THREE.Vector3(VALVE_X, TARGET_Y, BRANCH_Z), 
+                    INTERNAL_PIPE_RAD,
+                    'conditioned',
+                    false
+                );
+                const valve = createComponent(new THREE.CylinderGeometry(8, 8, 20, 16), MAT_VALVE, VALVE_X, TARGET_Y, BRANCH_Z + 15, `Valve ${compNum}`);
+                valve.rotation.x = Math.PI/2;
+                
+                const ENTRY_Z = 50; 
+                createCurvedPipe(
+                    new THREE.Vector3(VALVE_X, TARGET_Y, BRANCH_Z),
+                    new THREE.Vector3(VALVE_X, TARGET_Y, BRANCH_Z + 20),
+                    new THREE.Vector3(VALVE_X, TARGET_Y, ENTRY_Z - 10),
+                    new THREE.Vector3(VALVE_X, TARGET_Y, ENTRY_Z),
+                    INTERNAL_PIPE_RAD,
+                    'conditioned',
+                    true
+                );
+                // Nozzle
+                createCurvedPipe(
+                    new THREE.Vector3(VALVE_X, TARGET_Y, ENTRY_Z),
+                    new THREE.Vector3(VALVE_X + 50, TARGET_Y, ENTRY_Z + 20), 
+                    new THREE.Vector3(-VALVE_X - 50, TARGET_Y, ENTRY_Z + 20),
+                    new THREE.Vector3(-VALVE_X, TARGET_Y, ENTRY_Z),
+                    INTERNAL_PIPE_RAD,
+                    'conditioned',
+                    true
+                );
+
+                // --- Distributed Internal Flow ---
+                const PICKUP_Z = CAB_L - 30; 
+                const EX_PIPE_Y = yCenter - 20; 
+                const MAIN_PIPE_X = 0;
+                const NOZZLE_START_X = -VALVE_X; 
+                const NOZZLE_END_X = VALVE_X;
+                const PICKUP_WIDTH = CAB_W - 100;
+                
+                for(let i=0; i<30; i++) {
+                    const t1 = Math.random();
+                    const t2 = Math.random();
+                    const sx = NOZZLE_START_X + (NOZZLE_END_X - NOZZLE_START_X) * t1;
+                    const pStart = new THREE.Vector3(sx, TARGET_Y, ENTRY_Z); 
+                    const ex = -(PICKUP_WIDTH/2) + PICKUP_WIDTH * t2;
+                    const pEnd = new THREE.Vector3(ex, EX_PIPE_Y, PICKUP_Z); 
+                    const midZ = (ENTRY_Z + PICKUP_Z) / 2 + (Math.random() * 200 - 100);
+                    const midY = yCenter + (Math.random() * 120 - 40); 
+                    const midX = (sx + ex) / 2 + (Math.random() * 100 - 50);
+                    const cp1 = new THREE.Vector3(midX, midY, midZ);
+                    const curve = new THREE.QuadraticBezierCurve3(pStart, cp1, pEnd);
+                    flowPaths.push({ curve: curve, type: 'internal' });
+                }
+
+                // --- Outlet System ---
+                const OUTLET_Z = CAB_L + INS_THICKNESS/2; 
+                
+                createCurvedPipe(
+                    new THREE.Vector3(MAIN_PIPE_X, yCenter, OUTLET_Z), 
+                    new THREE.Vector3(MAIN_PIPE_X, yCenter, OUTLET_Z - 20), 
+                    new THREE.Vector3(MAIN_PIPE_X, EX_PIPE_Y, PICKUP_Z + 10), 
+                    new THREE.Vector3(MAIN_PIPE_X, EX_PIPE_Y, PICKUP_Z), 
+                    INTERNAL_PIPE_RAD,
+                    'exhaust',
+                    true
+                );
+                // Pickup Bar (Thicker)
+                const pickupBarGeo = new THREE.CylinderGeometry(INTERNAL_PIPE_RAD, INTERNAL_PIPE_RAD, CAB_W - 100, 16);
+                const pickupBar = createComponent(pickupBarGeo, MAT_PIPE_INTERNAL, MAIN_PIPE_X, EX_PIPE_Y, PICKUP_Z, "Pickup Bar");
+                pickupBar.rotation.z = Math.PI/2; 
+                
+                const valveEx = createComponent(new THREE.CylinderGeometry(8, 8, 20, 16), MAT_VALVE, MAIN_PIPE_X, yCenter, OUTLET_Z + 10, `ExValve ${compNum}`);
+                valveEx.rotation.x = Math.PI/2;
+            });
+
+            // --- Outlet Manifolds & Exhaust Fan Simulation ---
+            const OUTLET_Z = CAB_L + INS_THICKNESS/2; 
+            const EX_FAN_Y = 100; 
+            const EX_FAN_OFFSET_X = (CAB_W / 2) - 80; 
+            const MAIN_PIPE_X = 0; 
+            const SPINE_BOT = EX_FAN_Y + 50; 
+
+            // -- NEW: Vertical Exhaust Flow through Spine --
+            // Starts from bottom compartment level, goes up to top of spine
+            const BOTTOM_COMP_Y = COMP_CENTERS[0] - 20; 
+            const spineFlow = new THREE.LineCurve3(
+                new THREE.Vector3(MAIN_PIPE_X, BOTTOM_COMP_Y, OUTLET_Z),
+                new THREE.Vector3(MAIN_PIPE_X, SPINE_BOT, OUTLET_Z)
+            );
+            flowPaths.push({ curve: spineFlow, type: 'exhaust_spine' });
+            
+            const exPlenumGeo = new THREE.BoxGeometry(PLENUM_W, PLENUM_H, INS_THICKNESS);
+            createComponent(exPlenumGeo, MAT_PLENUM, -EX_FAN_OFFSET_X, EX_FAN_Y, OUTLET_Z, "Exhaust Plenum Left");
+            createComponent(exPlenumGeo, MAT_PLENUM, EX_FAN_OFFSET_X, EX_FAN_Y, OUTLET_Z, "Exhaust Plenum Right");
+            
+            const exFanGeo = new THREE.CylinderGeometry(FAN_RAD, FAN_RAD, FAN_THICKNESS, 32);
+            const exFan1 = createComponent(exFanGeo, MAT_FAN_HOUSING, -EX_FAN_OFFSET_X, EX_FAN_Y, OUTLET_Z + 30, "ExFan 1");
+            exFan1.rotation.x = Math.PI/2;
+            addFanBlades(exFan1);
+            const exFan2 = createComponent(exFanGeo, MAT_FAN_HOUSING, EX_FAN_OFFSET_X, EX_FAN_Y, OUTLET_Z + 30, "ExFan 2");
+            exFan2.rotation.x = Math.PI/2;
+            addFanBlades(exFan2);
+            
+            // Fan Exhaust Simulation (SCATTERED/DIVERGING)
+            const createFanExhaust = (xOffset) => {
+                for(let i=0; i<15; i++) {
+                    const startAngle = Math.random() * Math.PI * 2;
+                    const startRadius = Math.random() * (FAN_RAD - 2);
+                    const startX = xOffset + Math.cos(startAngle) * startRadius;
+                    const startY = EX_FAN_Y + Math.sin(startAngle) * startRadius;
+                    const startZ = OUTLET_Z + 55; // Just outside the fan
+
+                    const endAngle = Math.random() * Math.PI * 2;
+                    const endRadius = 50 + Math.random() * 100; // Wider spread
+                    const endX = xOffset + Math.cos(endAngle) * endRadius;
+                    const endY = EX_FAN_Y + Math.sin(endAngle) * endRadius;
+                    const endZ = OUTLET_Z + 350; // Further out
+
+                    const midZ = (startZ + endZ) / 2;
+                    const midX = (startX + endX) / 2;
+                    const midY = (startY + endY) / 2;
+
+                    const curve = new THREE.QuadraticBezierCurve3(
+                        new THREE.Vector3(startX, startY, startZ),
+                        new THREE.Vector3(midX, midY, midZ),
+                        new THREE.Vector3(endX, endY, endZ)
+                    );
+                    flowPaths.push({ curve: curve, type: 'fan_out' });
+                }
+            };
+            createFanExhaust(-EX_FAN_OFFSET_X);
+            createFanExhaust(EX_FAN_OFFSET_X);
+
+            const spineHeight = AHU_TOP_Y - SPINE_BOT;
+            const exSpineGeo = new THREE.CylinderGeometry(10, 10, spineHeight, 16);
+            createComponent(exSpineGeo, MAT_MANIFOLD, MAIN_PIPE_X, SPINE_BOT + spineHeight/2, OUTLET_Z, "Exhaust Spine");
+            
+            createCurvedPipe(
+                new THREE.Vector3(MAIN_PIPE_X, SPINE_BOT, OUTLET_Z),
+                new THREE.Vector3(MAIN_PIPE_X, SPINE_BOT - 20, OUTLET_Z),
+                new THREE.Vector3(-EX_FAN_OFFSET_X, EX_FAN_Y + 30, OUTLET_Z),
+                new THREE.Vector3(-EX_FAN_OFFSET_X, EX_FAN_Y + PLENUM_H/2, OUTLET_Z), 
+                PIPE_RAD,
+                'exhaust',
+                false
+            );
+            createCurvedPipe(
+                new THREE.Vector3(MAIN_PIPE_X, SPINE_BOT, OUTLET_Z),
+                new THREE.Vector3(MAIN_PIPE_X, SPINE_BOT - 20, OUTLET_Z),
+                new THREE.Vector3(EX_FAN_OFFSET_X, EX_FAN_Y + 30, OUTLET_Z),
+                new THREE.Vector3(EX_FAN_OFFSET_X, EX_FAN_Y + PLENUM_H/2, OUTLET_Z),
+                PIPE_RAD,
+                'exhaust',
+                false
+            );
+        }
+
+        // --- Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); 
+            
+            const time = Date.now() * 0.001;
+
+            // 1. Door Logic
+            const targetAngle = doorsOpen ? -Math.PI / 2 : 0;
+            const doorSpeed = 0.1;
+            doorPivots.forEach(pivot => {
+                if (Math.abs(pivot.rotation.z - targetAngle) > 0.001) {
+                    pivot.rotation.z += (targetAngle - pivot.rotation.z) * doorSpeed;
+                }
+            });
+
+            // 2. System Animation
+            if (systemOn) {
+                fans.forEach(hub => {
+                    hub.rotation.y -= 0.3; 
+                });
+
+                if (heaterMesh) {
+                    const pulse = (Math.sin(time * 3) + 1) * 0.5; 
+                    heaterMesh.material.emissiveIntensity = 0.2 + (pulse * 0.5);
+                    heaterMesh.material.opacity = 0.6 + (pulse * 0.4);
+                }
+
+                const orange = new THREE.Color(0xffaa00);
+                const green = new THREE.Color(0x00ff00);
+
+                particles.forEach(p => {
+                    p.progress += p.speed;
+                    if (p.progress > 1) p.progress = 0;
+                    
+                    const pos = p.curve.getPoint(p.progress);
+                    p.mesh.position.set(pos.x, pos.y, pos.z);
+                    p.mesh.visible = true;
+
+                    if (p.type === 'internal') {
+                        p.mesh.material.color.lerpColors(orange, green, p.progress);
+                    }
+                });
+            } else {
+                particles.forEach(p => p.mesh.visible = false);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+    </script>
+</body>
+</html>
