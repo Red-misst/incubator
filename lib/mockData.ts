@@ -41,4 +41,10 @@ export const incubatorModels = [
         description: "Simulation of the stepper motor and egg roller mechanisms.",
         status: "Available",
     },
+    {
+        id: "humidification",
+        title: "Humidification Chamber",
+        description: "Simulation of the mist generation and mixing process.",
+        status: "Available",
+    },
 ];
