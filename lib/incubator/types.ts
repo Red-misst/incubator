@@ -41,7 +41,8 @@ export type SceneState = {
 };
 
 export type DynamicEggGroups = {
-  group: THREE.Group;
+  group: THREE.Group; // Static frame
+  racks: THREE.Group[]; // Individual tilting planks
   py: number;
   pz: number;
 };
@@ -55,5 +56,6 @@ export type SceneRefs = {
   doorPivots: THREE.Group[];
   fans: THREE.Group[];
   flowPaths: FlowPath[];
+  dynamicEggTrays: DynamicEggGroups[]; // Now contains list of racks
   heaterMesh: THREE.Mesh<THREE.BoxGeometry, THREE.MeshStandardMaterial> | null;
 };

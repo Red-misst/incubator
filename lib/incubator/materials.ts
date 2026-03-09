@@ -138,9 +138,9 @@ export function createMaterials(): IncubatorMaterials {
     }),
 
     MAT_ROLLER: new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      metalness: 0.1,
-      roughness: 0.9,
+      color: 0x334155,
+      metalness: 0.2,
+      roughness: 0.6,
     }),
 
     MAT_FRAME: new THREE.MeshStandardMaterial({

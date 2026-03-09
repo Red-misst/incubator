@@ -1,5 +1,5 @@
-import { IncubatorApp } from "@/components/incubator/IncubatorApp";
+import { Dashboard } from "@/components/dashboard/Dashboard";
 
 export default function Home() {
-  return <IncubatorApp />;
+  return <Dashboard />;
 }

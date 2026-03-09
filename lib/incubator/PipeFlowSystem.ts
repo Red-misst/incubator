@@ -110,33 +110,42 @@ export class PipeFlowSystem {
         const count = this.particleData.length;
         for (let i = 0; i < count; i += 1) {
             const data = this.particleData[i];
-            const curve = this.flowPaths[data.pathIndex].curve;
+            const path = this.flowPaths[data.pathIndex];
+            const curve = path.curve;
+            const type = path.type;
 
-            // Advance progress
-            data.progress += data.baseSpeed;
+            // 1. Advance progress with type-specific physics
+            let currentSpeed = data.baseSpeed;
+            if (type === "fan_in") {
+                // Suction: accelerate as we get closer to the fan (progress -> 1)
+                currentSpeed *= 0.5 + 2.5 * data.progress;
+            } else if (type === "fan_out") {
+                // Exhaust: decelerate as we move away (progress -> 1)
+                currentSpeed *= 2.0 * (1 - data.progress * 0.7);
+            }
+
+            data.progress += currentSpeed;
             if (data.progress >= 1) {
                 data.progress = 0;
-                // Optional: scramble radius/angle on rebirth for variety
                 data.angleOffset = Math.random() * Math.PI * 2;
             }
 
-            // Get point and tangent for offsetting
+            // 2. Position and Offsetting
             const pt = curve.getPointAt(data.progress);
             const tangent = curve.getTangentAt(data.progress);
 
-            // Calculate normal and binormal to sweep the radius reliably
-            // We use a dummy up vector to calculate a cross product
             let up = new THREE.Vector3(0, 1, 0);
-            // If tangent is parallel to UP, use X axis as up
-            if (Math.abs(tangent.y) > 0.99) {
-                up = new THREE.Vector3(1, 0, 0);
-            }
+            if (Math.abs(tangent.y) > 0.99) up = new THREE.Vector3(1, 0, 0);
             const normal = new THREE.Vector3().crossVectors(tangent, up).normalize();
             const binormal = new THREE.Vector3().crossVectors(tangent, normal).normalize();
 
-            // Apply offset
-            const rX = Math.cos(data.angleOffset) * data.radiusOffset;
-            const rY = Math.sin(data.angleOffset) * data.radiusOffset;
+            // Squeeze radius for fan_in and fan_out for better "jet" look
+            let rMult = 1.0;
+            if (type === "fan_in") rMult = 1.0 - data.progress * 0.8;
+            if (type === "fan_out") rMult = 0.3 + data.progress * 1.5;
+
+            const rX = Math.cos(data.angleOffset) * data.radiusOffset * rMult;
+            const rY = Math.sin(data.angleOffset) * data.radiusOffset * rMult;
 
             const finalX = pt.x + normal.x * rX + binormal.x * rY;
             const finalY = pt.y + normal.y * rX + binormal.y * rY;
@@ -147,21 +156,35 @@ export class PipeFlowSystem {
             positions[idx + 1] = finalY;
             positions[idx + 2] = finalZ;
 
-            // Velocity Colour Mapping based on simulation standards
-            // We map baseSpeed (0.002 to 0.010 roughly) to the 0-18 length scale
-            const nominalSpeed = data.baseSpeed * 1500; // max ~15
+            // 3. Velocity Colour Mapping
+            const nominalSpeed = currentSpeed * 1500;
             const nS = Math.min(Math.max(nominalSpeed / 18.0, 0), 1.0);
 
             let r = 0, g = 0, b = 0;
-            // Match CfdSystem Solidworks scale mapping
             if (nS < 0.25) { r = 0; g = 4 * nS; b = 1; }
             else if (nS < 0.5) { r = 0; g = 1; b = 1 - 4 * (nS - 0.25); }
             else if (nS < 0.75) { r = 4 * (nS - 0.5); g = 1; b = 0; }
             else { r = 1; g = 1 - 4 * (nS - 0.75); b = 0; }
 
-            colors[idx] = r;
-            colors[idx + 1] = g;
-            colors[idx + 2] = b;
+            // 4. Opacity & Sparkle (Alpha stored in vertex color for additive blending)
+            let alpha = 0.8;
+            if (type === "fan_in") {
+                // Fade in as they get sucked in
+                alpha = data.progress * 0.9;
+            } else if (type === "fan_out") {
+                // Fade out as they disperse
+                alpha = (1.0 - data.progress) * 0.9;
+            }
+
+            // High-frequency sparkle for turbulent fan air
+            if (type === "fan_in" || type === "fan_out") {
+                const flicker = 0.7 + Math.random() * 0.3;
+                alpha *= flicker;
+            }
+
+            colors[idx] = r * alpha;
+            colors[idx + 1] = g * alpha;
+            colors[idx + 2] = b * alpha;
         }
 
         this.pointSystem.geometry.attributes.position.needsUpdate = true;

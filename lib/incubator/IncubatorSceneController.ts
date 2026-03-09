@@ -270,6 +270,14 @@ export class IncubatorSceneController {
       // CFD compartment particles
       this.cfd.update(seconds);
       this.cfd.setVisible(true);
+
+      // Egg tray rack tilting (cup holder planks tilt, frame stays static)
+      const tiltAngle = Math.sin(seconds * 0.4) * 0.65;
+      this.refs.dynamicEggTrays.forEach((tray) => {
+        tray.racks.forEach((rack) => {
+          rack.rotation.x = tiltAngle;
+        });
+      });
     } else {
       this.pipeSystem.setVisible(false);
       this.cfd.setVisible(false);

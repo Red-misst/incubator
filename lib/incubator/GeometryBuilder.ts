@@ -3,12 +3,12 @@ import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import { TextGeometry } from "three/examples/jsm/geometries/TextGeometry.js";
 import { IncubatorMaterials } from "./materials";
 import { CfdSystem } from "./CfdSystem";
-import { FlowPath, FlowType, Particle, SceneRefs } from "./types";
+import { DynamicEggGroups, FlowPath, FlowType, Particle, SceneRefs } from "./types";
 
 // Cabinet constants shared across build functions
 const CAB_L = 1200;
 const CAB_H = 1000;
-const CAB_W = 500;
+const CAB_W = 600; // Slightly wider for better egg proportions
 const WALL_THICKNESS = 100;
 const INS_THICKNESS = 50;
 
@@ -63,16 +63,24 @@ export function buildScene(
   }
 
   function addFanBlades(fanMesh: THREE.Object3D): void {
-    const bladeGeo = new THREE.BoxGeometry(36, 5, 2);
-    const blade1 = new THREE.Mesh(bladeGeo, mats.MAT_FAN_BLADE);
-    const blade2 = new THREE.Mesh(bladeGeo, mats.MAT_FAN_BLADE);
-    blade2.rotation.y = Math.PI / 2;
-    const hub = new THREE.Group();
-    hub.add(blade1);
-    hub.add(blade2);
-    hub.rotation.x = Math.PI / 2;
-    fanMesh.add(hub);
-    fans.push(hub);
+    const hubRoot = new THREE.Group();
+    fanMesh.add(hubRoot);
+
+    const bladeGeo = new THREE.BoxGeometry(36, 1, 10);
+    for (let i = 0; i < 7; i++) {
+      const blade = new THREE.Mesh(bladeGeo, mats.MAT_FAN_BLADE);
+      blade.rotation.y = (i / 7) * Math.PI * 2;
+      blade.position.y = 0;
+      // Pitch the blade for realism
+      blade.rotation.z = 0.4;
+      hubRoot.add(blade);
+    }
+
+    const centerHub = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 12, 16), mats.MAT_FAN_BLADE);
+    centerHub.rotation.x = Math.PI / 2;
+    hubRoot.add(centerHub);
+
+    fans.push(hubRoot);
   }
 
   // -------------------------------------------------------------- main shell
@@ -190,9 +198,9 @@ export function buildScene(
     "Plenum Right",
   );
 
-  const FAN_THICKNESS = 60;
+  const FAN_THICKNESS = 40;
   const FAN_Z_POS = WALL_Z - PLENUM_D / 2 - FAN_THICKNESS / 2 - 2;
-  const fanGeo = new THREE.CylinderGeometry(FAN_RAD, FAN_RAD, FAN_THICKNESS, 64);
+  const fanGeo = new THREE.CylinderGeometry(FAN_RAD + 4, FAN_RAD + 4, FAN_THICKNESS, 32, 1, true); // Hollow housing
 
   const fan1 = createComponent(fanGeo, mats.MAT_FAN_HOUSING, -FAN_X_OFFSET, FAN_Y, FAN_Z_POS, "Fan Left");
   fan1.rotation.x = -Math.PI / 2;
@@ -203,27 +211,31 @@ export function buildScene(
   addFanBlades(fan2);
 
   const createFanIntake = (xOffset: number) => {
-    for (let i = 0; i < 15; i += 1) {
+    for (let i = 0; i < 20; i += 1) {
       const startAngle = Math.random() * Math.PI * 2;
-      const startRadius = 60 + Math.random() * 40;
-      const sz = FAN_Z_POS - 150 - Math.random() * 50;
+      const startRadius = 80 + Math.random() * 60;
+      const sz = FAN_Z_POS - 200 - Math.random() * 50;
       const sx = xOffset + Math.cos(startAngle) * startRadius;
       const sy = FAN_Y + Math.sin(startAngle) * startRadius;
-      const endAngle = Math.random() * Math.PI * 2;
-      const endRadius = Math.random() * (FAN_RAD - 2);
-      const ex = xOffset + Math.cos(endAngle) * endRadius;
-      const ey = FAN_Y + Math.sin(endAngle) * endRadius;
+
+      const ex = xOffset;
+      const ey = FAN_Y;
       const ez = FAN_Z_POS - 5;
-      const midZ = (sz + ez) / 2;
-      const mid = new THREE.Vector3(sx * 0.8 + xOffset * 0.2, sy * 0.8 + FAN_Y * 0.2, midZ);
-      flowPaths.push({
-        curve: new THREE.QuadraticBezierCurve3(
-          new THREE.Vector3(sx, sy, sz),
-          mid,
-          new THREE.Vector3(ex, ey, ez),
-        ),
-        type: "fan_in",
-      });
+
+      // Use CatmullRom for a spiral vortex effect
+      const midAngle = startAngle + Math.PI * 0.8; // Rotate almost 180 deg
+      const midR = startRadius * 0.5;
+      const midX = xOffset + Math.cos(midAngle) * midR;
+      const midY = FAN_Y + Math.sin(midAngle) * midR;
+      const midZ = (sz + ez) * 0.5;
+
+      const spiral = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(sx, sy, sz),
+        new THREE.Vector3(midX, midY, midZ),
+        new THREE.Vector3(ex, ey, ez),
+      ]);
+
+      flowPaths.push({ curve: spiral, type: "fan_in" });
     }
   };
 
@@ -328,8 +340,11 @@ export function buildScene(
   const compBackGeo = new THREE.BoxGeometry(4, COMP_H, CAB_L);
   const compEndGeo = new THREE.BoxGeometry(CAB_W, COMP_H, 4);
   const paddingGeo = new THREE.BoxGeometry(CAB_W, GAP, CAB_L);
-  const eggGeo = new THREE.SphereGeometry(6, 64, 64);
-  eggGeo.scale(1, 1.4, 1);
+  // Eggs: 30 per compartment = 60 total.
+  // Space is ~1200x600. 6 rows of 5 eggs each.
+  // Egg size: ~40 units wide, ~55 units tall.
+  const eggGeo = new THREE.SphereGeometry(22, 32, 32);
+  eggGeo.scale(1, 1.35, 1);
 
   COMP_CENTERS.forEach((yCenter, index) => {
     const compNum = COMP_CENTERS.length - index;
@@ -381,64 +396,76 @@ export function buildScene(
 
     // Roller rails + eggs
     const ROLLER_Y = yCenter - COMP_H / 2 + 20;
-    const ROLLER_SPACING = 30;
-
-    // Create a group that will physically rotate for the simulation
-    const trayGroup = new THREE.Group();
-    // The tray technically pivots around the center of the compartment
+    // 1. Static Frame (Doesn't Move)
+    const trayFrameGroup = new THREE.Group();
     const trayPivotZ = CAB_L / 2;
     const trayPivotY = ROLLER_Y;
-    trayGroup.position.set(0, trayPivotY, trayPivotZ);
-    staticGroup.add(trayGroup);
+    trayFrameGroup.position.set(0, trayPivotY, trayPivotZ);
+    staticGroup.add(trayFrameGroup);
 
-    dynamicEggTrays.push({
-      group: trayGroup,
-      py: trayPivotY,
-      pz: trayPivotZ,
-    });
+    const leftRail = new THREE.Mesh(new THREE.BoxGeometry(10, 20, CAB_L - 40), mats.MAT_FRAME);
+    leftRail.position.set(-((CAB_W - 40) / 2) - 5, 0, 0);
+    trayFrameGroup.add(leftRail);
 
-    const leftRail = new THREE.Mesh(new THREE.BoxGeometry(5, 10, CAB_L - 20), mats.MAT_FRAME);
-    leftRail.position.set(-((CAB_W - 40) / 2) - 2.5, 0, 0); // local to pivot
-    trayGroup.add(leftRail);
+    const rightRail = new THREE.Mesh(new THREE.BoxGeometry(10, 20, CAB_L - 40), mats.MAT_FRAME);
+    rightRail.position.set((CAB_W - 40) / 2 + 5, 0, 0);
+    trayFrameGroup.add(rightRail);
 
-    const rightRail = new THREE.Mesh(new THREE.BoxGeometry(5, 10, CAB_L - 20), mats.MAT_FRAME);
-    rightRail.position.set((CAB_W - 40) / 2 + 2.5, 0, 0);
-    trayGroup.add(rightRail);
+    // Motor and linkage rod (Visual only)
+    const motor = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 30, 32), mats.MAT_MOTOR);
+    motor.position.set((CAB_W - 40) / 2 + 5, 0, CAB_L / 2 - trayPivotZ + 100);
+    motor.rotation.z = Math.PI / 2;
+    trayFrameGroup.add(motor);
 
-    const rollerGeo = new THREE.CylinderGeometry(7.5, 7.5, CAB_W - 40, 32);
-    const rollerCount = Math.floor(CAB_L / ROLLER_SPACING) - 2;
+    const linkageRod = new THREE.Mesh(new THREE.BoxGeometry(5, 5, CAB_L - 200), mats.MAT_FRAME);
+    linkageRod.position.set((CAB_W - 40) / 2 - 10, 10, 0);
+    trayFrameGroup.add(linkageRod);
 
-    for (let r = 0; r < rollerCount; r += 1) {
-      const rollerZ = r * ROLLER_SPACING + 40;
-      const roller = new THREE.Mesh(rollerGeo, mats.MAT_ROLLER);
-      roller.position.set(0, 0, rollerZ - trayPivotZ); // internal to group
-      roller.rotation.z = Math.PI / 2;
-      trayGroup.add(roller);
+    // 2. Individual Tilting Planks (Racks)
+    const currentRacks: THREE.Group[] = [];
+    const ROWS_Z = 6;
+    const EGGS_PER_ROW = 5;
+    const Z_SPACING = (CAB_L - 250) / (ROWS_Z - 1);
+    const X_SPACING = (CAB_W - 120) / (EGGS_PER_ROW - 1);
 
-      if (r < rollerCount - 1) {
-        const midZ = (rollerZ + (r + 1) * ROLLER_SPACING + 40) / 2;
-        const nestleY = ROLLER_Y + 5;
-        const spacing = (CAB_W - 60) / 5;
+    const plankGeo = new THREE.BoxGeometry(CAB_W - 60, 5, 40);
+    const cupGeo = new THREE.CylinderGeometry(20, 15, 10, 32, 1, true); // Open cup
 
-        for (let e = 0; e < 5; e += 1) {
-          const egg = new THREE.Mesh(eggGeo, mats.MAT_EGG);
-          const px = -((CAB_W - 60) / 2) + spacing / 2 + spacing * e;
-          const py = nestleY - trayPivotY;
-          const pz = midZ - trayPivotZ;
-          egg.position.set(px, py, pz);
-          egg.rotation.z = (Math.random() - 0.5) * 0.2;
-          egg.rotation.x = Math.PI / 2 + (Math.random() - 0.5) * 0.2;
-          trayGroup.add(egg);
+    for (let r = 0; r < ROWS_Z; r += 1) {
+      const rollerZ = 125 + r * Z_SPACING;
 
-          // Note: we'll draw fluid boundaries dynamically per-frame in IncudatorSceneController
-        }
+      const rackPlank = new THREE.Group();
+      rackPlank.position.set(0, 0, rollerZ - trayPivotZ);
+      trayFrameGroup.add(rackPlank);
+      currentRacks.push(rackPlank);
+
+      // The Plank itself
+      const plankMesh = new THREE.Mesh(plankGeo, mats.MAT_ROLLER);
+      rackPlank.add(plankMesh);
+
+      // Egg cup holders
+      for (let e = 0; e < EGGS_PER_ROW; e += 1) {
+        const px = -((CAB_W - 120) / 2) + e * X_SPACING;
+
+        const cup = new THREE.Mesh(cupGeo, mats.MAT_VALVE); // Using a distinct material for contrast
+        cup.position.set(px, 5, 0);
+        rackPlank.add(cup);
+
+        const egg = new THREE.Mesh(eggGeo, mats.MAT_EGG);
+        egg.position.set(px, 18, 0);
+        // Random slight lean for realism
+        egg.rotation.z = (Math.random() - 0.5) * 0.3;
+        egg.rotation.x = (Math.random() - 0.5) * 0.3;
+        rackPlank.add(egg);
       }
     }
 
-    const motor = new THREE.Mesh(new THREE.CylinderGeometry(15, 15, 30, 32), mats.MAT_MOTOR);
-    motor.position.set((CAB_W - 40) / 2 + 2.5 - 25, ROLLER_Y, CAB_L - 40);
-    motor.rotation.z = Math.PI / 2;
-    staticGroup.add(motor);
+    dynamicEggTrays.push({
+      group: trayFrameGroup,
+      racks: currentRacks,
+      py: trayPivotY,
+      pz: trayPivotZ,
+    });
 
     // Conditioned air supply to this compartment
     const INTERNAL_PIPE_RAD = 12;
@@ -586,30 +613,32 @@ export function buildScene(
   addFanBlades(exFan2);
 
   const createFanExhaust = (xOffset: number) => {
-    for (let i = 0; i < 15; i += 1) {
+    for (let i = 0; i < 20; i += 1) {
       const startAngle = Math.random() * Math.PI * 2;
-      const startRadius = Math.random() * (FAN_RAD - 2);
+      const startRadius = Math.random() * (FAN_RAD - 5);
       const startX = xOffset + Math.cos(startAngle) * startRadius;
       const startY = EX_FAN_Y + Math.sin(startAngle) * startRadius;
       const startZ = OUTLET_Z + 55;
-      const endAngle = Math.random() * Math.PI * 2;
-      const endRadius = 50 + Math.random() * 100;
+
+      const endAngle = startAngle + Math.PI * 1.5; // Stronger spiral cone
+      const endRadius = 150 + Math.random() * 100;
       const endX = xOffset + Math.cos(endAngle) * endRadius;
       const endY = EX_FAN_Y + Math.sin(endAngle) * endRadius;
-      const endZ = OUTLET_Z + 350;
-      const mid = new THREE.Vector3(
-        (startX + endX) / 2,
-        (startY + endY) / 2,
-        (startZ + endZ) / 2,
-      );
-      flowPaths.push({
-        curve: new THREE.QuadraticBezierCurve3(
-          new THREE.Vector3(startX, startY, startZ),
-          mid,
-          new THREE.Vector3(endX, endY, endZ),
-        ),
-        type: "fan_out",
-      });
+      const endZ = OUTLET_Z + 400;
+
+      const midAngle = (startAngle + endAngle) * 0.5;
+      const midR = (startRadius + endRadius) * 0.4;
+      const midX = xOffset + Math.cos(midAngle) * midR;
+      const midY = EX_FAN_Y + Math.sin(midAngle) * midR;
+      const midZ = (startZ + endZ) * 0.5;
+
+      const exhaustSpiral = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(startX, startY, startZ),
+        new THREE.Vector3(midX, midY, midZ),
+        new THREE.Vector3(endX, endY, endZ),
+      ]);
+
+      flowPaths.push({ curve: exhaustSpiral, type: "fan_out" });
     }
   };
 
@@ -654,6 +683,7 @@ export function buildScene(
     doorPivots,
     fans,
     flowPaths,
+    dynamicEggTrays,
     heaterMesh,
   };
 }
