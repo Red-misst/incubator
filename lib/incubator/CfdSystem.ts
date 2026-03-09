@@ -101,7 +101,7 @@ export class CfdSystem {
   }
 
   initCompartment(yCenter: number, compHeight: number, cabWidth: number): void {
-    const particleCount = 100_000; // Increased for better SolidWorks density
+    const particleCount = 100_000; // Increased for better density
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -213,7 +213,7 @@ export class CfdSystem {
         vy += Math.cos(px * 0.04 + pz * 0.02 - time * 3) * 2.5;
 
         // ── Standardized Color (Standardized Entry-to-Exit) ──────────────
-        // SolidWorks Color Mapping (Standardized from Enter to Leave)
+        // Color Mapping (Standardized from Enter to Leave)
         // Calculated BEFORE final suction pull to keep the pattern stable.
         const chamberSpeed = Math.sqrt(vx * vx + vy * vy + vz * vz);
         // nColor: 1.0 at entry (warm), 0.0 at exit (cool), blended with speed

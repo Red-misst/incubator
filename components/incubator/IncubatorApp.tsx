@@ -111,9 +111,9 @@ export function IncubatorApp() {
 
       {/* ── Header badge ── */}
       <div className={styles.info}>
-        End-Wall Cabinet Incubator v4.0
+        Incubator Simulation
         <br />
-        <span className={styles.infoSmall}>CFD SolidWorks Flow Simulation</span>
+        <span className={styles.infoSmall}>Dimensions: 600W x 1000H x 1200L mm</span>
       </div>
 
       {/* ── Navigation Sidebar ── */}

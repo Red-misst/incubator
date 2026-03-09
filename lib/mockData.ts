@@ -1,11 +1,11 @@
 export const mockTemperatureData = Array.from({ length: 24 }).map((_, i) => ({
-    time: `${i}:00`,
+    time: `${(i + 10) % 24}:00`,
     actual: 37.5 + (Math.random() * 0.4 - 0.2), // Target: 37.5
     optimal: 37.5,
 }));
 
 export const mockHumidityData = Array.from({ length: 24 }).map((_, i) => ({
-    time: `${i}:00`,
+    time: `${(i + 10) % 24}:00`,
     actual: 55 + (Math.random() * 5 - 2.5), // Target: 55%
     optimal: 55,
 }));
@@ -39,6 +39,6 @@ export const incubatorModels = [
         id: "tilting",
         title: "Mechanical Tilting Rack",
         description: "Simulation of the stepper motor and egg roller mechanisms.",
-        status: "Maintenance",
+        status: "Available",
     },
 ];

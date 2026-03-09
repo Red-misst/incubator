@@ -3,6 +3,7 @@
 import { use } from "react";
 import { IncubatorApp } from "@/components/incubator/IncubatorApp";
 import { HeatingSystemModel } from "@/components/incubator/HeatingSystemModel";
+import { TiltingMechanismModel } from "@/components/incubator/TiltingMechanismModel";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -28,7 +29,7 @@ export default function ModelPage({ params }: { params: Promise<{ id: string }> 
             </div>
 
             {/* Render the core IncubatorApp component - we can pass `modelId={id}` later if needed to customize the 3D scene */}
-            {id === "ahu" ? <HeatingSystemModel /> : <IncubatorApp />}
+            {id === "ahu" ? <HeatingSystemModel /> : id === "tilting" ? <TiltingMechanismModel /> : <IncubatorApp />}
         </div>
     );
 }
