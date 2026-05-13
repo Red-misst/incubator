@@ -184,3 +184,142 @@ The C++ firmware for the ESP32 has undergone targeted unit testing on the physic
 2. **Component Installation:** Mount the ESP32 control board, wire the high-voltage SSR banks, and route all sensor/actuator cabling into the respective compartments.
 3. **AHU Integration:** Physically attach the pre-assembled Air Handling Unit piping and solenoid distribution manifold to the main chassis end-wall.
 4. **Full System Burn-in Test:** Run the completed assembly (without live eggs) for a continuous 72-hour period to validate thermal stabilization, humidity control, and the AI/DeepSeek telemetry feedback loop.
+
+
+
+
+
+
+
+
+
+# Oasis Agentic Swarm Documentation
+
+This document explains the architecture, responsibilities, and communication flows of the Oasis Agentic Suite.
+
+## Overview
+
+The Oasis Agentic Suite is an autonomous, multi-agent system designed to act as a complete digital workforce for e-commerce vendors. Instead of a single AI trying to do everything, the system is divided into specialized "Domain Agents", each with its own specific skills, tools, and access boundaries.
+
+These agents work together under the coordination of a **Supervisor (Orchestrator)** to automate tasks across production, finance, marketing, logistics, research, and customer service.
+
+## Architecture & Communication Flow
+
+The swarm operates using a Hub-and-Spoke model managed by LangGraph. Agents do not typically talk directly to each other; instead, they pass their outputs back to the Supervisor, which decides who needs to act next based on the overall goal.
+
+```mermaid
+graph TD
+    User([Vendor / Cron Job / Customer]) -->|Trigger| Supervisor
+
+    subgraph Swarm Hub
+        Supervisor[Orchestrator / Supervisor Node]
+    end
+
+    subgraph Domain Agents
+        RD[R&D Agent]
+        Finance[Finance Agent]
+        Purchasing[Purchasing Agent]
+        Production[Production Agent]
+        Admin[Admin Agent]
+        Marketing[Marketing Agent]
+        CS[Customer Service Agent]
+    end
+
+    Supervisor <-->|Routes tasks & gathers results| RD
+    Supervisor <-->|Routes tasks & gathers results| Finance
+    Supervisor <-->|Routes tasks & gathers results| Purchasing
+    Supervisor <-->|Routes tasks & gathers results| Production
+    Supervisor <-->|Routes tasks & gathers results| Admin
+    Supervisor <-->|Routes tasks & gathers results| Marketing
+    Supervisor <-->|Routes tasks & gathers results| CS
+
+    %% Connections representing internal tool usage
+    Finance -.->|Internal API| DB[(MongoDB)]
+    Production -.->|Internal API| DB
+    Marketing -.->|WhatsApp API| External[Customers / WhatsApp]
+    CS -.->|WhatsApp API| External
+```
+
+### How Communication Works
+
+1. **Trigger**: A task is initiated. This can happen manually via the Vendor Dashboard (Juniper UI), automatically via a background `bullmq` cron job, or via an incoming WhatsApp message.
+2. **Supervisor Routing**: The `supervisor.ts` node analyzes the prompt and the conversation history. It decides which specialized agent is best equipped to handle the task.
+3. **Execution**: The chosen Domain Agent receives the context and executes its specific tools (e.g., querying the database, sending an email).
+4. **Validation & Logging**: Before taking any permanent action (like updating the database), the agent constructs a payload and passes it through an internal Zod validation layer. If the action is high-stakes, the agent flags it as requiring Human-In-The-Loop (HITL) approval, pausing the workflow until the vendor clicks "Approve".
+5. **Return to Supervisor**: The agent returns its findings to the Supervisor. If the task is complete, the Supervisor returns `FINISH`. If another agent is needed (e.g., R&D analyzed a trend, now Marketing needs to create an ad), the Supervisor routes the context to the next agent.
+
+---
+
+## Domain Agents Breakdown
+
+### 1. R&D Agent (Strategic)
+
+- **Role:** Market trend analysis, feasibility studies, and competitor tracking.
+- **Tools:** Data analysis, web scraping (if enabled), product performance aggregation.
+- **Workflow:** Identifies what products are trending and suggests new categories or price optimizations.
+
+### 2. Finance Agent (Strategic & Financial)
+
+- **Role:** Budget approvals, M-Pesa reconciliation, vendor payments, and ledger audits.
+- **Tools:** Ledger queries, M-Pesa API integrations, financial discrepancy flagging.
+- **Workflow:** Reconciles daily POS and online sales against actual bank/M-Pesa deposits. Flags missing payments to the dashboard.
+
+### 3. Purchasing Agent (Supply & Operations)
+
+- **Role:** Vendor sourcing, purchase orders, logistics tracking.
+- **Tools:** Supplier databases, PO generation tools.
+- **Workflow:** Works with the Production agent. When stock is low, this agent drafts a Purchase Order for suppliers.
+
+### 4. Production Agent (Supply & Operations)
+
+- **Role:** Inventory levels, quality control, manufacturing sync.
+- **Tools:** Inventory database, barcode/SKU management.
+- **Workflow:** Constantly monitors stock levels against sales velocity. Alerts the vendor or Purchasing Agent when items need restocking.
+
+### 5. Admin Agent (System)
+
+- **Role:** System health monitoring, internal ticketing, access control.
+- **Tools:** Audit logs, telemetry data, user permission adjustments.
+- **Workflow:** Monitors system uptime and agent success rates. Generates daily health reports.
+
+### 6. Marketing Agent (Outreach)
+
+- **Role:** Campaign design, WhatsApp broadcasts, engagement analytics.
+- **Tools:** WhatsApp Broadcast API, Marketing Lead generation, Ad budget allocation.
+- **Workflow:** Takes insights from R&D and creates actionable Marketing Leads or drafts WhatsApp promotional blasts to whitelisted customer groups.
+
+### 7. Customer Service Agent (Outreach)
+
+- **Role:** Direct customer interaction.
+- **Tools:** Semantic product search, shipping estimators.
+- **Workflow:** Automatically replies to customer inquiries on WhatsApp. Can find products, quote shipping, and answer FAQs.
+
+---
+
+## Example Scenario: Low Stock Auto-Restock
+
+```mermaid
+sequenceDiagram
+    participant Cron as BullMQ Cron
+    participant Sup as Supervisor
+    participant Prod as Production Agent
+    participant Purch as Purchasing Agent
+    participant Vendor as Vendor Dashboard (HITL)
+
+    Cron->>Sup: "Run inventory check"
+    Sup->>Prod: Route to Production
+    Prod->>Prod: Query Inventory DB
+    Prod-->>Sup: "Product X is critically low."
+    Sup->>Purch: Route to Purchasing
+    Purch->>Purch: Draft Purchase Order
+    Purch->>Sup: "PO Drafted. Requires Approval."
+    Sup->>Vendor: Halt Swarm (Pending Approval)
+    Vendor-->>Sup: Vendor Clicks "Approve & Execute"
+    Sup->>Purch: "Human approved, proceed."
+    Purch->>Purch: Send PO to Supplier
+    Purch-->>Sup: "Task Complete."
+    Sup-->>Cron: FINISH
+```
+
+This architecture ensures maximum efficiency while maintaining safety through strict tool validation and human-in-the-loop checkpoints for critical business operations.
+
